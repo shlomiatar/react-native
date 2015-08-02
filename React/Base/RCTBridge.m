@@ -80,6 +80,14 @@ NSString *RCTBridgeModuleNameForClass(Class cls)
   return name;
 }
 
+/**
+ * Check if class has been registered
+ */
+BOOL RCTBridgeModuleClassIsRegistered(Class);
+BOOL RCTBridgeModuleClassIsRegistered(Class cls)
+{
+  return [objc_getAssociatedObject(cls, &RCTBridgeModuleClassIsRegistered) ?: @YES boolValue];
+}
 
 @implementation RCTBridge
 
@@ -108,8 +116,12 @@ dispatch_queue_t RCTJSThread;
         if (class_conformsToProtocol(superclass, @protocol(RCTBridgeModule)))
         {
           if (![RCTModuleClasses containsObject:cls]) {
-            RCTLogError(@"Class %@ was not exported. Did you forget to use "
-                        "RCT_EXPORT_MODULE()?", NSStringFromClass(cls));
+            RCTLogWarn(@"Class %@ was not exported. Did you forget to use "
+                       "RCT_EXPORT_MODULE()?", cls);
+
+            RCTRegisterModule(cls);
+            objc_setAssociatedObject(cls, &RCTBridgeModuleClassIsRegistered,
+                                     @NO, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
           }
           break;
         }
@@ -230,7 +242,6 @@ RCT_NOT_IMPLEMENTED(-init)
     [RCTGetLatestExecutor() executeJSCall:@"RCTLog"
                                    method:@"logIfNoNativeHook"
                                 arguments:@[level, message]
-                                  context:RCTGetExecutorID(RCTGetLatestExecutor())
                                  callback:^(__unused id json, __unused NSError *error) {}];
   });
 }
@@ -254,7 +265,5 @@ RCT_NOT_IMPLEMENTED(-init)
 
 RCT_INNER_BRIDGE_ONLY(_invokeAndProcessModule:(__unused NSString *)module
                       method:(__unused NSString *)method
-                      arguments:(__unused NSArray *)args
-                      context:(__unused NSNumber *)context)
-
+                      arguments:(__unused NSArray *)args);
 @end
